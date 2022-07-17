@@ -45,7 +45,7 @@ double randf_uniform(void)
     return rnd;
 }
 
-/* Function that returns a gaussian distributed random number. Used the Box-Muller transform */
+/* Function that returns a gaussian distributed random number. Uses the Box-Muller transform */
 double randf_std_norm(void)
 {
     /* Generating 2 random numbers used to generate a random normal number.
