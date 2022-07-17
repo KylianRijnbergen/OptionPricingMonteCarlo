@@ -14,8 +14,8 @@
 /* Structs */
 
 /* Functions */
-double randf_uniform(void);
-double randf_std_norm(void);
+float randf_uniform(void);
+float randf_std_norm(void);
 
 int main(void)
 {
@@ -25,10 +25,12 @@ int main(void)
     /* Setting random number seed */
     srand(RANDOM_SEED);
 
+    float random;
     /* Generating random floats */ 
-    for(int i = 0; i < 1000; i++)
+    for(int i = 0; i < 100000000; i++)
     {
-        printf("Random number %d is: %lf\n", i, randf_std_norm());
+        // printf("Random number %d is: %lf\n", i, randf_std_norm());
+        random = randf_std_norm();
     }
 
     /* End timer and print elapsed time */
@@ -39,29 +41,29 @@ int main(void)
 }
 
 /* Function that returns a double between 0 and 1 */ 
-double randf_uniform(void)
+float randf_uniform(void)
 {
-    double rnd = (double)rand()/(double)(RAND_MAX);
+    float rnd = (float)rand()/(float)(RAND_MAX);
     return rnd;
 }
 
-/* Function that returns a gaussian distributed random number. Uses the Box-Muller transform */
-double randf_std_norm(void)
+/* Function that returns a normal distributed random number. Uses the Box-Muller transform */
+float randf_std_norm(void)
 {
     /* Generating 2 random numbers used to generate a random normal number.
     We check if u1 is 0 such that we can immediately return it before generating u2. */
     /* First random number */
-    double u1 = randf_uniform();
+    float u1 = randf_uniform();
     /* If u1 is 0, the natural logarithm of u1 is undefined. Therefore, we return 0. This is not exact but should not affect results by a lot. */
     if (u1 == 0)
     {
         return 0;
     }
     /* Second random number */
-    double u2 = randf_uniform();
+    float u2 = randf_uniform();
 
     /* Generate normal random number */
-    double rnd = sqrt(-2 * log(u1)) * cos(2*M_PI*u2);
+    float rnd = sqrt(-2 * log(u1)) * cos(2*M_PI*u2);
     /* Return random number */
     return rnd;    
 }
