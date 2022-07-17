@@ -2,6 +2,7 @@
 #include <pthread.h> /* Multi Threading */
 #include <stdlib.h> /* Included for random numbers */
 #include <time.h> /* Included for timing our program */
+#include <math.h> /* Included for getting PI and power functions etc. */
 
 /* DEFINITION OF SYSTEM SPECS */
 #define NUM_THREADS = 2 /* We use 2 threads for now. This will be changed to a higher number later */
@@ -13,8 +14,8 @@
 /* Structs */
 
 /* Functions */
-double randf(void);
-
+double randf_uniform(void);
+double randf_std_norm(void);
 
 int main(void)
 {
@@ -25,9 +26,9 @@ int main(void)
     srand(RANDOM_SEED);
 
     /* Generating random floats */ 
-    for(int i = 0; i < 100000; i++)
+    for(int i = 0; i < 1000; i++)
     {
-        printf("Random number %d is: %lf\n", i, randf());
+        printf("Random number %d is: %lf\n", i, randf_std_norm());
     }
 
     /* End timer and print elapsed time */
@@ -38,8 +39,29 @@ int main(void)
 }
 
 /* Function that returns a double between 0 and 1 */ 
-double randf(void)
+double randf_uniform(void)
 {
     double rnd = (double)rand()/(double)(RAND_MAX);
     return rnd;
+}
+
+/* Function that returns a gaussian distributed random number. Used the Box-Muller transform */
+double randf_std_norm(void)
+{
+    /* Generating 2 random numbers used to generate a random normal number.
+    We check if u1 is 0 such that we can immediately return it before generating u2. */
+    /* First random number */
+    double u1 = randf_uniform();
+    /* If u1 is 0, the natural logarithm of u1 is undefined. Therefore, we return 0. This is not exact but should not affect results by a lot. */
+    if (u1 == 0)
+    {
+        return 0;
+    }
+    /* Second random number */
+    double u2 = randf_uniform();
+
+    /* Generate normal random number */
+    double rnd = sqrt(-2 * log(u1)) * cos(2*M_PI*u2);
+    /* Return random number */
+    return rnd;    
 }
