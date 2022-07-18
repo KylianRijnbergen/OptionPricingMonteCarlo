@@ -2,7 +2,7 @@
 #include <pthread.h> /* Multi Threading */
 #include <stdlib.h> /* Included for random numbers */
 #include <time.h> /* Included for timing our program */
-#include <math.h> /* Included for getting PI and power functions etc. */
+#include <math.h> /* Included for getting PI and power functions, e powers, etc. */
 
 /* DEFINITION OF SYSTEM SPECS */
 #define NUM_THREADS = 2 /* We use 2 threads for now. This will be changed to a higher number later */
@@ -16,6 +16,7 @@
 /* Functions */
 float randf_uniform(void);
 float randf_std_norm(void);
+float generate_asset_price(float start_price, float volatility, float risk_free, float time_delta);
 
 int main(void)
 {
@@ -27,10 +28,14 @@ int main(void)
 
     float random;
     /* Generating random floats */ 
-    for(int i = 0; i < 100000000; i++)
+    for(int i = 0; i < 100000; i++)
     {
         // printf("Random number %d is: %lf\n", i, randf_std_norm());
-        random = randf_std_norm();
+        float start_price = 100;
+        float volatility = 0.02;
+        float risk_free = 0.001;
+        float time_delta = 1;
+        printf("Newly generated price is: %f.\n", generate_asset_price(start_price, volatility, risk_free, time_delta));
     }
 
     /* End timer and print elapsed time */
@@ -67,3 +72,28 @@ float randf_std_norm(void)
     /* Return random number */
     return rnd;    
 }
+
+/* Function that can generate a new asset price using Geometric Brownian Motion. 
+Function has four inputs:
+- Current asset price
+- Volatility over time period (time period should be the same for all inputs and outputs)
+- Risk-free rate of return
+- Time delta (number of time steps to take) */
+float generate_asset_price(float start_price, float volatility, float risk_free, float time_delta)
+{
+    /* Create a float to return later */
+    float new_price;
+    /* The new price is equal to: 
+    - Start price multiplied by:
+    - E to the power of (part A plus part B) 
+    - Where:
+        - A) (Risk-free rate - 0.5 * volatility squared) * time delta
+        - B) volatility * sqrt(time_delta) * a randomly distributed normal number (standard uniform)
+    */ 
+    new_price = start_price * exp((risk_free - 0.5 * pow(volatility, 2)) * time_delta 
+    + volatility * sqrt(time_delta) * randf_std_norm());
+
+    /*Return new price */
+    return new_price; 
+}
+
