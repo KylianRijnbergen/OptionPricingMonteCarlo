@@ -28,14 +28,15 @@ int main(void)
 
     float random;
     /* Generating random floats */ 
-    for(int i = 0; i < 100000; i++)
+    for(int i = 0; i < 100000000; i++)
     {
         // printf("Random number %d is: %lf\n", i, randf_std_norm());
         float start_price = 100;
         float volatility = 0.02;
         float risk_free = 0.001;
         float time_delta = 1;
-        printf("Newly generated price is: %f.\n", generate_asset_price(start_price, volatility, risk_free, time_delta));
+        // printf("Newly generated price is: %f.\n", generate_asset_price(start_price, volatility, risk_free, time_delta));
+        generate_asset_price(start_price, volatility, risk_free, time_delta);
     }
 
     /* End timer and print elapsed time */
