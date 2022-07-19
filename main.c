@@ -5,7 +5,7 @@
 #include <math.h> /* Included for getting PI and power functions, e powers, etc. */
 
 /* DEFINITION OF SYSTEM SPECS */
-#define NUM_THREADS 2 /* We use 2 threads for now. This will be changed to a higher number later */
+#define NUM_THREADS 20 /* We use NUM_THREADS threads for now. This can be changed to a higher number later */
 
 /* DEFINITION OF PROGRAM PARAMETERS */
 #define RANDOM_SEED 1843397
@@ -20,7 +20,7 @@ float randf_uniform(void);
 float randf_std_norm(void);
 float generate_asset_price(float start_price, float volatility, float risk_free, float time_delta);
 // Temporary for development purposes
-void *thread_running_routine();
+void* thread_running_routine(void* x);
 
 /* Declaration of structs */
 typedef struct SampleBatch
@@ -38,7 +38,7 @@ int main(void)
     /* Setting random number seed */
     srand(RANDOM_SEED);
 
-    /* Creating a pointer that points to two SampleBatch structs such that we can use multiple threads to fill them */
+    /* Creating a pointer that points to NUM_THREADS SampleBatch structs such that we can use multiple threads to fill them */
     SampleBatch *sample_batchesPtr;
     /* Allocate memory for our samples */
     sample_batchesPtr = malloc(sizeof(SampleBatch) * NUM_THREADS);
@@ -47,17 +47,17 @@ int main(void)
     /* Creating array of threads */
     pthread_t th[NUM_THREADS];
     /* Spawn threads */
-    for (int i = 0; i < NUM_THREADS; i++)
+    for (long long i = 0; i < NUM_THREADS; i++)
     {
-        pthread_create(th+i, NULL, thread_running_routine, NULL);
-        printf("Thread %d has started\n", i);
+        void *x;
+        x = (void*)i;
+        pthread_create(th+i, NULL, &thread_running_routine, x);
     }
 
     /* Merge threads */
     for (int i = 0; i < NUM_THREADS; i++)
     {
         pthread_join(th[i], NULL);
-        printf("Thread %d has finished\n", i);
     }
 
 
@@ -122,12 +122,13 @@ float generate_asset_price(float start_price, float volatility, float risk_free,
 }
 
 // Function for development purposes 
-void *thread_running_routine()
-{
+void* thread_running_routine(void* x)
+{   
+    printf("Spawned thread %d\n", x);
     for(long long i = 0; i < 9999999999; i++);
     {
         randf_std_norm();
     }
-    printf("Spawned thread\n");
+    printf("Thread %d finished execution\n", x);
     return NULL;
 }
