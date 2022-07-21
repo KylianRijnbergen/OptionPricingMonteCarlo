@@ -32,6 +32,8 @@ void market_print(Market *market);
 void simulator_print(Simulator *simulator);
 void option_print(Option *option);
 void print_line();
+float maxf(float a, float b);
+float minf(float a, float b);
 
 /* Declaration of structs */
 /* Asset */
@@ -272,4 +274,24 @@ void print_line()
     }
     printf("\n\n");
     return NULL;
+}
+
+/* Max function for floats */
+float maxf(float a, float b)
+{
+    if(a >= b)
+    {
+        return a;
+    }
+    return b;
+}
+
+/* Min function for floats */
+float minf(float a, float b)
+{
+    if (a <= b)
+    {
+        return a;
+    }
+    return b;
 }
