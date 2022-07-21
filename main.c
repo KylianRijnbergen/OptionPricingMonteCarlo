@@ -3,17 +3,23 @@
 #include <stdlib.h> /* Included for random numbers */
 #include <time.h> /* Included for timing our program */
 #include <math.h> /* Included for getting PI and power functions, e powers, etc. */
+#include <string.h> /* Strings */
 
 /* DEFINITION OF SYSTEM SPECS */
-#define NUM_THREADS 20 /* We use NUM_THREADS threads for now. This can be changed to a higher number later */
+#define NUM_THREADS 2 /* We use NUM_THREADS threads for now. This can be changed to a higher number later */
 
 /* DEFINITION OF PROGRAM PARAMETERS */
 #define RANDOM_SEED 1843397
-#define BATCH_SIZE 1000
+#define BATCH_SIZE 1
+#define NUM_SAMPLES (long long)pow(10,7) /* Samples is 10 ** 7. Cast to long long. */ 
 
 /* Forward Declarations */
 /* Structs */
-typedef struct SampleBatch SampleBatch; 
+typedef struct Asset Asset;
+typedef struct Market Market;
+typedef struct Simulator Simulator;
+typedef struct Option Option;
+typedef struct Args Args;
 
 /* Functions */
 float randf_uniform(void);
@@ -21,13 +27,55 @@ float randf_std_norm(void);
 float generate_asset_price(float start_price, float volatility, float risk_free, float time_delta);
 // Temporary for development purposes
 void* thread_running_routine(void* x);
+void asset_print(Asset *asset);
+void market_print(Market *market);
+void simulator_print(Simulator *simulator);
+void option_print(Option *option);
+void print_line();
 
 /* Declaration of structs */
-typedef struct SampleBatch
+/* Asset */
+typedef struct Asset 
 {
-    int num_samples;
-    float samples[BATCH_SIZE];
-} SampleBatch;
+    char* name;
+    float start_price;
+    float volatility;
+} Asset;
+
+/* Market */
+typedef struct Market
+{
+    int trading_days;
+    double risk_free;
+} Market;
+
+/* Simulator */
+typedef struct Simulator
+{
+    int time_delta;
+    long long curr_iter;
+    long long max_iters;
+} Simulator;
+
+/* Option */
+typedef struct Option 
+{
+    char* type;
+    float price;
+    float strike;
+    int maturity;
+    Asset* underlying;
+} Option;
+
+/* Struct that can be passed to our threads that run the simulation. 
+Has attibutes Market, Simulator, Option. Note that Asset is not an attibute of Args. 
+This is done because Asset is already an attribute of Option (option.underlying), which is an argument of Args. */
+typedef struct Args
+{
+    Market* market;
+    Simulator* simulator;
+    Option* option;
+} Args;
 
 /* Main Function */
 int main(void)
@@ -38,20 +86,62 @@ int main(void)
     /* Setting random number seed */
     srand(RANDOM_SEED);
 
-    /* Creating a pointer that points to NUM_THREADS SampleBatch structs such that we can use multiple threads to fill them */
-    SampleBatch *sample_batchesPtr;
-    /* Allocate memory for our samples */
-    sample_batchesPtr = malloc(sizeof(SampleBatch) * NUM_THREADS);
+    /* Create the Asset, Market, Simulator, Option, such that we can combine them into Args which can be passed to our threads. */
+    /* Asset Creation */
+    Asset *GOOGL;
+    GOOGL = malloc(sizeof(Asset));
+    GOOGL->name = "Google";
+    GOOGL->start_price = 2897.04;
+    GOOGL->volatility = 0.020241938215008266;
+    /* Print asset to see if everything is as expected*/
+    asset_print(GOOGL);
+
+    /* Market Creation */
+    Market *STOCK_MARKET;
+    STOCK_MARKET = malloc(sizeof(Market));
+    STOCK_MARKET->trading_days = 252;
+    double yearly_risk_free = 1.97;
+    double daily_risk_free;
+    daily_risk_free = pow( (double)((yearly_risk_free / 100) + 1) , ((double)1/(double)(STOCK_MARKET->trading_days))) - 1;
+    STOCK_MARKET->risk_free = daily_risk_free;
+    /* Print market to see if everything is as expected */
+    market_print(STOCK_MARKET);
+
+    /* Simulator Creation */
+    Simulator *SIM;
+    SIM = malloc(sizeof(Simulator));
+    SIM->time_delta = 1;
+    SIM->curr_iter = 0;
+    SIM->max_iters = NUM_SAMPLES;
+    /* Print simulator */
+    simulator_print(SIM);
+
+    /* Create option */
+    Option *CallOption;
+    CallOption = malloc(sizeof(Option));
+    CallOption->type = "Call";
+    CallOption->price = 0;
+    CallOption->strike = 2900;
+    CallOption->maturity = 252;
+    CallOption->underlying = GOOGL;
+    /* Print Option */
+    option_print(CallOption);
+
+    /* Create Args */
+    Args *args;
+    args = malloc(sizeof(Args));
+    args->market = STOCK_MARKET;
+    args->simulator = SIM;
+    args->option = CallOption;
 
     /* MULTITHREADING PART */
     /* Creating array of threads */
     pthread_t th[NUM_THREADS];
+
     /* Spawn threads */
-    for (long long i = 0; i < NUM_THREADS; i++)
+    for (int i = 0; i < NUM_THREADS; i++)
     {
-        void *x;
-        x = (void*)i;
-        pthread_create(th+i, NULL, &thread_running_routine, x);
+        pthread_create(th+i, NULL, &thread_running_routine, NULL);
     }
 
     /* Merge threads */
@@ -60,6 +150,7 @@ int main(void)
         pthread_join(th[i], NULL);
     }
 
+    printf("Number of samples is %lld \n", NUM_SAMPLES);
 
 
     /* End timer and print elapsed time */
@@ -124,11 +215,61 @@ float generate_asset_price(float start_price, float volatility, float risk_free,
 // Function for development purposes 
 void* thread_running_routine(void* x)
 {   
-    printf("Spawned thread %d\n", x);
-    for(long long i = 0; i < 9999999999; i++);
+    randf_std_norm();
+    return NULL;
+}
+
+/* Function that can print an asset */
+void asset_print(Asset *asset)
+{
+    printf("Asset name is %s.\n", asset->name);
+    printf("Start price of asset is %.2lf.\n", asset->start_price);
+    printf("Volatility of asset is %.2lf.\n", asset->volatility);
+    printf("\n");
+    return NULL;
+}
+
+/* Function that prints the market */
+void market_print(Market *market)
+{
+    printf("Trading days in market are %d.\n", market->trading_days);
+    printf("Daily risk-free rate of return is %.10lf.\n", market->risk_free);
+    printf("\n");
+    return NULL;
+}
+
+/* Function that prints our simulator */
+void simulator_print(Simulator *simulator)
+{
+    printf("Simulator has time step of %d.\n", simulator->time_delta);
+    printf("Simulator is currently at iteration %lld.\n", simulator->curr_iter);
+    printf("Simulator will stop after %lld iterations.\n", simulator->max_iters);
+    printf("\n");
+    return NULL;
+}
+
+/* Function that prints our option */
+void option_print(Option *option)
+{
+    print_line();
+    printf("This is an option on the stock of %s.\n\n", option->underlying->name);
+    printf("Contract parameters are: \n");
+    printf("- Type: %s.\n", option->type);
+    printf("- Strike: %.2lf.\n", option->strike);
+    printf("- Time to maturity: %d.\n", option->maturity);
+    printf("\n");
+    printf("The current price of Google stock is %.2lf.\n", option->underlying->start_price);
+    print_line();
+    printf("\n\n");
+}
+
+/* Function that prints a line to the console */
+void print_line()
+{
+    for (int i = 0; i < 100; i++)
     {
-        randf_std_norm();
+        printf("_");
     }
-    printf("Thread %d finished execution\n", x);
+    printf("\n\n");
     return NULL;
 }
