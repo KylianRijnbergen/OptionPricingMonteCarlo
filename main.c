@@ -7,11 +7,12 @@
 
 /* DEFINITION OF SYSTEM SPECS */
 #define NUM_THREADS 2 /* We use NUM_THREADS threads for now. This can be changed to a higher number later */
+#define TIME_DELTA 1 /* We use a time step of 1 for now */
 
 /* DEFINITION OF PROGRAM PARAMETERS */
 #define RANDOM_SEED 1843397
 #define BATCH_SIZE 1
-#define NUM_SAMPLES (long long)pow(10,7) /* Samples is 10 ** 7. Cast to long long. */ 
+#define NUM_SAMPLES (long long)pow(10,8) /* Samples is 10 ** 7. Cast to long long. */ 
 
 /* Forward Declarations */
 /* Structs */
@@ -24,7 +25,7 @@ typedef struct Args Args;
 /* Functions */
 float randf_uniform(void);
 float randf_std_norm(void);
-float generate_asset_price(float start_price, float volatility, float risk_free, float time_delta);
+double generate_asset_price(double start_price, double volatility, double risk_free, double time_delta);
 // Temporary for development purposes
 void* thread_running_routine(void* x);
 void asset_print(Asset *asset);
@@ -32,8 +33,11 @@ void market_print(Market *market);
 void simulator_print(Simulator *simulator);
 void option_print(Option *option);
 void print_line();
-float maxf(float a, float b);
-float minf(float a, float b);
+double maxd(double a, double b);
+double mind(double a, double b);
+void* simulate(void* args);
+double compute_path_payoff(Args *args);
+double discountd(double value, double risk_free, double time_step);
 
 /* Declaration of structs */
 /* Asset */
@@ -124,7 +128,7 @@ int main(void)
     CallOption->type = "Call";
     CallOption->price = 0;
     CallOption->strike = 2900;
-    CallOption->maturity = 252;
+    CallOption->maturity = 1;
     CallOption->underlying = GOOGL;
     /* Print Option */
     option_print(CallOption);
@@ -138,22 +142,31 @@ int main(void)
 
     /* MULTITHREADING PART */
     /* Creating array of threads */
-    pthread_t th[NUM_THREADS];
+    // pthread_t th[NUM_THREADS];
 
     /* Spawn threads */
-    for (int i = 0; i < NUM_THREADS; i++)
-    {
-        pthread_create(th+i, NULL, &thread_running_routine, NULL);
-    }
+    // for (int i = 0; i < NUM_THREADS; i++)
+    // {
+    //    pthread_create(th+i, NULL, &thread_running_routine, NULL);
+    //}
 
     /* Merge threads */
-    for (int i = 0; i < NUM_THREADS; i++)
+    //for (int i = 0; i < NUM_THREADS; i++)
+    //{
+    //    pthread_join(th[i], NULL);
+    //}
+
+    //printf("Number of samples is %lld \n", NUM_SAMPLES);
+
+
+    // TESTING PART
+
+    void *arguments = (void*)args;
+    for(int i = 0; i < NUM_SAMPLES; i++)
     {
-        pthread_join(th[i], NULL);
+        simulate(args);
     }
-
-    printf("Number of samples is %lld \n", NUM_SAMPLES);
-
+    printf("Option price is %lf.\n", args->option->price);
 
     /* End timer and print elapsed time */
     clock_t end_time = clock();
@@ -196,10 +209,10 @@ Function has four inputs:
 - Volatility over time period (time period should be the same for all inputs and outputs)
 - Risk-free rate of return
 - Time delta (number of time steps to take) */
-float generate_asset_price(float start_price, float volatility, float risk_free, float time_delta)
+double generate_asset_price(double start_price, double volatility, double risk_free, double time_delta)
 {
     /* Create a float to return later */
-    float new_price;
+    double new_price;
     /* The new price is equal to: 
     - Start price multiplied by:
     - E to the power of (part A plus part B) 
@@ -276,8 +289,8 @@ void print_line()
     return NULL;
 }
 
-/* Max function for floats */
-float maxf(float a, float b)
+/* Max function for doubles */
+double maxd(double a, double b)
 {
     if(a >= b)
     {
@@ -286,12 +299,45 @@ float maxf(float a, float b)
     return b;
 }
 
-/* Min function for floats */
-float minf(float a, float b)
+/* Min function for doubles */
+double mind(double a, double b)
 {
     if (a <= b)
     {
         return a;
     }
     return b;
+}
+
+/* Function that is capable of performing iterations of a simulation for a single thread. */
+void* simulate(void* inp_args)
+{
+    Args *args = (Args *)inp_args;
+    args->option->price += discountd((compute_path_payoff(args)/NUM_SAMPLES), (double)args->market->risk_free, (double)args->option->maturity);
+    // printf("The price of a single path payoff is %lf.\n", compute_path_payoff(args));
+    return NULL;
+}
+
+/* Function that computes the payoff for a single path (random walk). */
+double compute_path_payoff(Args *args)
+{
+    double strike = (double)args->option->strike;
+    double s_0 = (double)args->option->underlying->start_price;
+    double volatility = (double)args->option->underlying->volatility;
+    double risk_free = (double)args->market->risk_free;
+    double time_delta = (double)TIME_DELTA;
+    double new_price = s_0;
+    
+    /* MULTI-STEP APPROACH */
+    for (int i = 0; i < (int)args->option->maturity; i += (int)time_delta)
+    {
+        new_price = generate_asset_price(new_price, volatility, risk_free, time_delta);
+    }
+    return maxd(0, new_price-strike); /* Return the positive difference between new price and strike. This is the payoff for a single path for a call option */
+}
+
+/* Function that can discount doubles. Floats can be cast to doubles to make the function work with floats. */
+double discountd(double value, double risk_free, double time_step)
+{
+    return value * exp(-1*risk_free*time_step);
 }
