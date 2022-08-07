@@ -4,15 +4,22 @@
 #include <time.h> /* Included for timing our program */
 #include <math.h> /* Included for getting PI and power functions, e powers, etc. */
 #include <string.h> /* Strings */
+#include "libs/random.h" /* Included own random library header file */
 
 /* DEFINITION OF SYSTEM SPECS */
 #define NUM_THREADS 2 /* We use NUM_THREADS threads for now. This can be changed to a higher number later */
-#define TIME_DELTA 1 /* We use a time step of 1 for now */
+#define TIME_DELTA 252 /* We use a time step of TIME_DELTA for now */
 
 /* DEFINITION OF PROGRAM PARAMETERS */
 #define RANDOM_SEED 1843397
 #define BATCH_SIZE 1
-#define NUM_SAMPLES (long long)pow(10,8) /* Samples is 10 ** 7. Cast to long long. */ 
+#define NUM_SAMPLES (long long)pow(10,7) /* Samples is NUM_SAMPLES. Cast to long long. */ 
+#define TRADING_DAYS 252
+#define RISK_FREE_RATE 0.01
+#define START_PRICE 100
+#define VOLATILITY 0.02
+#define STRIKE_PRICE 100
+#define MATURITY 252
 
 /* Forward Declarations */
 /* Structs */
@@ -23,11 +30,7 @@ typedef struct Option Option;
 typedef struct Args Args;
 
 /* Functions */
-float randf_uniform(void);
-float randf_std_norm(void);
 double generate_asset_price(double start_price, double volatility, double risk_free, double time_delta);
-// Temporary for development purposes
-void* thread_running_routine(void* x);
 void asset_print(Asset *asset);
 void market_print(Market *market);
 void simulator_print(Simulator *simulator);
@@ -97,16 +100,16 @@ int main(void)
     Asset *GOOGL;
     GOOGL = malloc(sizeof(Asset));
     GOOGL->name = "Google";
-    GOOGL->start_price = 2897.04;
-    GOOGL->volatility = 0.020241938215008266;
+    GOOGL->start_price = START_PRICE;
+    GOOGL->volatility = VOLATILITY;
     /* Print asset to see if everything is as expected*/
     asset_print(GOOGL);
 
     /* Market Creation */
     Market *STOCK_MARKET;
     STOCK_MARKET = malloc(sizeof(Market));
-    STOCK_MARKET->trading_days = 252;
-    double yearly_risk_free = 1.97;
+    STOCK_MARKET->trading_days = TRADING_DAYS;
+    double yearly_risk_free = RISK_FREE_RATE;
     double daily_risk_free;
     daily_risk_free = pow( (double)((yearly_risk_free / 100) + 1) , ((double)1/(double)(STOCK_MARKET->trading_days))) - 1;
     STOCK_MARKET->risk_free = daily_risk_free;
@@ -116,7 +119,7 @@ int main(void)
     /* Simulator Creation */
     Simulator *SIM;
     SIM = malloc(sizeof(Simulator));
-    SIM->time_delta = 1;
+    SIM->time_delta = TIME_DELTA;
     SIM->curr_iter = 0;
     SIM->max_iters = NUM_SAMPLES;
     /* Print simulator */
@@ -127,8 +130,8 @@ int main(void)
     CallOption = malloc(sizeof(Option));
     CallOption->type = "Call";
     CallOption->price = 0;
-    CallOption->strike = 2900;
-    CallOption->maturity = 1;
+    CallOption->strike = STRIKE_PRICE;
+    CallOption->maturity = MATURITY;
     CallOption->underlying = GOOGL;
     /* Print Option */
     option_print(CallOption);
@@ -175,34 +178,6 @@ int main(void)
     return 0;
 }
 
-/* Function that returns a double between 0 and 1 */ 
-float randf_uniform(void)
-{
-    float rnd = (float)rand()/(float)(RAND_MAX);
-    return rnd;
-}
-
-/* Function that returns a normal distributed random number. Uses the Box-Muller transform */
-float randf_std_norm(void)
-{
-    /* Generating 2 random numbers used to generate a random normal number.
-    We check if u1 is 0 such that we can immediately return it before generating u2. */
-    /* First random number */
-    float u1 = randf_uniform();
-    /* If u1 is 0, the natural logarithm of u1 is undefined. Therefore, we return 0. This is not exact but should not affect results by a lot. */
-    if (u1 == 0)
-    {
-        return 0;
-    }
-    /* Second random number */
-    float u2 = randf_uniform();
-
-    /* Generate normal random number */
-    float rnd = sqrt(-2 * log(u1)) * cos(2*M_PI*u2);
-    /* Return random number */
-    return rnd;    
-}
-
 /* Function that can generate a new asset price using Geometric Brownian Motion. 
 Function has four inputs:
 - Current asset price
@@ -221,17 +196,10 @@ double generate_asset_price(double start_price, double volatility, double risk_f
         - B) volatility * sqrt(time_delta) * a randomly distributed normal number (standard uniform)
     */ 
     new_price = start_price * exp((risk_free - 0.5 * pow(volatility, 2)) * time_delta 
-    + volatility * sqrt(time_delta) * randf_std_norm());
+    + volatility * sqrt(time_delta) * randd_std_norm());
 
     /*Return new price */
     return new_price; 
-}
-
-// Function for development purposes 
-void* thread_running_routine(void* x)
-{   
-    randf_std_norm();
-    return NULL;
 }
 
 /* Function that can print an asset */
@@ -276,6 +244,7 @@ void option_print(Option *option)
     printf("The current price of Google stock is %.2lf.\n", option->underlying->start_price);
     print_line();
     printf("\n\n");
+    return NULL;
 }
 
 /* Function that prints a line to the console */
@@ -313,7 +282,7 @@ double mind(double a, double b)
 void* simulate(void* inp_args)
 {
     Args *args = (Args *)inp_args;
-    args->option->price += discountd((compute_path_payoff(args)/NUM_SAMPLES), (double)args->market->risk_free, (double)args->option->maturity);
+    args->option->price += discountd((compute_path_payoff(args)), (double)args->market->risk_free, (double)args->option->maturity)/NUM_SAMPLES;
     // printf("The price of a single path payoff is %lf.\n", compute_path_payoff(args));
     return NULL;
 }
@@ -341,3 +310,4 @@ double discountd(double value, double risk_free, double time_step)
 {
     return value * exp(-1*risk_free*time_step);
 }
+
