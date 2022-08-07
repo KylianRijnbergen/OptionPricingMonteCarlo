@@ -7,19 +7,22 @@
 #include "libs/random.h" /* Included own random library header file */
 
 /* DEFINITION OF SYSTEM SPECS */
-#define NUM_THREADS 2 /* We use NUM_THREADS threads for now. This can be changed to a higher number later */
+#define NUM_THREADS 1 /* We use NUM_THREADS threads for now. This can be changed to a higher number later */
 #define TIME_DELTA 252 /* We use a time step of TIME_DELTA for now */
 
 /* DEFINITION OF PROGRAM PARAMETERS */
 #define RANDOM_SEED 1843397
 #define BATCH_SIZE 1
-#define NUM_SAMPLES (long long)pow(10,7) /* Samples is NUM_SAMPLES. Cast to long long. */ 
+#define NUM_SAMPLES (long long)pow(10,6) /* Samples is NUM_SAMPLES. Cast to long long. */ 
 #define TRADING_DAYS 252
 #define RISK_FREE_RATE 0.01
 #define START_PRICE 100
 #define VOLATILITY 0.02
 #define STRIKE_PRICE 100
 #define MATURITY 252
+
+/* DEFINITION OF MOCKING PARAMETERS */
+#define USE_MOCKED_RANDOM 0 /* If this is set to 1, we use mocked random numbers. If 0, we use real random numbers. */
 
 /* Forward Declarations */
 /* Structs */
@@ -31,6 +34,8 @@ typedef struct Args Args;
 
 /* Functions */
 double generate_asset_price(double start_price, double volatility, double risk_free, double time_delta);
+double rand_std_norm(void);
+double random_mock(double *nums, int count);
 void asset_print(Asset *asset);
 void market_print(Market *market);
 void simulator_print(Simulator *simulator);
@@ -85,6 +90,10 @@ typedef struct Args
     Simulator* simulator;
     Option* option;
 } Args;
+
+/* Declaration of global variables */
+pthread_mutex_t price_mutex; /* Mutex for locking the updating of the option price */
+pthread_mutex_t iter_mutex; /* Mutex for locking the updating of the current iteration */
 
 /* Main Function */
 int main(void)
@@ -143,33 +152,35 @@ int main(void)
     args->simulator = SIM;
     args->option = CallOption;
 
+    void *arguments = (void*)args;
+
+    //for(int i = 0; i < NUM_SAMPLES; i++)
+    //{
+    //    simulate(args);
+    //}
+
     /* MULTITHREADING PART */
-    /* Creating array of threads */
-    // pthread_t th[NUM_THREADS];
+    /* Creating array of threads, as well initialize the mutex for updating our option struct. */
+    pthread_t th[NUM_THREADS];
+    pthread_mutex_init(&price_mutex, NULL); 
+    pthread_mutex_init(&iter_mutex, NULL);
 
     /* Spawn threads */
-    // for (int i = 0; i < NUM_THREADS; i++)
-    // {
-    //    pthread_create(th+i, NULL, &thread_running_routine, NULL);
-    //}
+    for (int i = 0; i < NUM_THREADS; i++)
+    {
+        pthread_create(th+i, NULL, &simulate, args);
+    }
 
     /* Merge threads */
-    //for (int i = 0; i < NUM_THREADS; i++)
-    //{
-    //    pthread_join(th[i], NULL);
-    //}
-
-    //printf("Number of samples is %lld \n", NUM_SAMPLES);
-
-
-    // TESTING PART
-
-    void *arguments = (void*)args;
-    for(int i = 0; i < NUM_SAMPLES; i++)
+    for (int i = 0; i < NUM_THREADS; i++)
     {
-        simulate(args);
+        pthread_join(th[i], NULL);
     }
+    pthread_mutex_destroy(&price_mutex); 
+    pthread_mutex_destroy(&iter_mutex);
+
     printf("Option price is %lf.\n", args->option->price);
+    printf("Number of samples is %lld \n", args->simulator->curr_iter);
 
     /* End timer and print elapsed time */
     clock_t end_time = clock();
@@ -196,10 +207,39 @@ double generate_asset_price(double start_price, double volatility, double risk_f
         - B) volatility * sqrt(time_delta) * a randomly distributed normal number (standard uniform)
     */ 
     new_price = start_price * exp((risk_free - 0.5 * pow(volatility, 2)) * time_delta 
-    + volatility * sqrt(time_delta) * randd_std_norm());
+    + volatility * sqrt(time_delta) * rand_std_norm());
 
     /*Return new price */
     return new_price; 
+}
+
+/* Function that is responsible for generationg random std normal numbers. Can use either random or mocked random. */
+double rand_std_norm(void)
+{
+    if (USE_MOCKED_RANDOM)
+    {
+        double numbers[] = {1.1, 0.9, 1, 0.8, 1.2};
+        int count = 5;
+        return random_mock(numbers, count);
+    }
+    else
+    {
+        return randd_std_norm();
+    }
+}
+
+/* Function that mocks random numbers */
+double random_mock(double *nums, int count)
+{
+    static int i = 0;
+    double ret_val = nums[i];
+    i++;
+    printf("I is %d\n", i);
+    if (i == count)
+    {
+        i = 0;
+    }
+    return ret_val;
 }
 
 /* Function that can print an asset */
@@ -278,12 +318,26 @@ double mind(double a, double b)
     return b;
 }
 
-/* Function that is capable of performing iterations of a simulation for a single thread. */
+/* Function that is capable of performing multiple iterations of the simulation for a single thread */ 
 void* simulate(void* inp_args)
 {
     Args *args = (Args *)inp_args;
-    args->option->price += discountd((compute_path_payoff(args)), (double)args->market->risk_free, (double)args->option->maturity)/NUM_SAMPLES;
-    // printf("The price of a single path payoff is %lf.\n", compute_path_payoff(args));
+    while (args->simulator->curr_iter < args->simulator->max_iters)
+    {
+        double price_update = 0;
+        for (int i = 0; i < BATCH_SIZE; i++)
+        {
+            price_update += discountd((compute_path_payoff(args)), (double)args->market->risk_free, (double)args->option->maturity);
+        }
+        pthread_mutex_lock(&price_mutex);
+        pthread_mutex_lock(&iter_mutex);
+    
+        args->option->price += price_update/NUM_SAMPLES;
+        args->simulator->curr_iter += BATCH_SIZE;
+
+        pthread_mutex_unlock(&price_mutex);
+        pthread_mutex_unlock(&iter_mutex);
+    }
     return NULL;
 }
 
@@ -296,11 +350,17 @@ double compute_path_payoff(Args *args)
     double risk_free = (double)args->market->risk_free;
     double time_delta = (double)TIME_DELTA;
     double new_price = s_0;
-    
+    int i;
+
     /* MULTI-STEP APPROACH */
-    for (int i = 0; i < (int)args->option->maturity; i += (int)time_delta)
+    for (i = 0; i + (int)time_delta < (int)args->option->maturity; i += (int)time_delta) /* Perform the first couple of steps such that we do not go over the maturity, but we use the TIME_DELTA as specified */
     {
         new_price = generate_asset_price(new_price, volatility, risk_free, time_delta);
+    }
+    /* Use time step of the differene between i and actual maturity as time delta */ 
+    if (i != (int)args->option->maturity)
+    {
+        new_price = generate_asset_price(new_price, volatility, risk_free, ((int)args->option->maturity - i));
     }
     return maxd(0, new_price-strike); /* Return the positive difference between new price and strike. This is the payoff for a single path for a call option */
 }
@@ -310,4 +370,3 @@ double discountd(double value, double risk_free, double time_step)
 {
     return value * exp(-1*risk_free*time_step);
 }
-
