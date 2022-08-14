@@ -12,8 +12,8 @@
 
 /* DEFINITION OF PROGRAM PARAMETERS */
 #define RANDOM_SEED 1843397
-#define BATCH_SIZE 1000
-#define NUM_SAMPLES (long long)pow(10,8) /* Samples is NUM_SAMPLES. Cast to long long. */ 
+#define BATCH_SIZE 10000
+#define NUM_SAMPLES (long long)pow(10,10) /* Samples is NUM_SAMPLES. Cast to long long. */ 
 #define TRADING_DAYS 252
 #define RISK_FREE_RATE 0.01
 #define START_PRICE 100
@@ -151,13 +151,6 @@ int main(void)
     args->simulator = SIM;
     args->option = CallOption;
 
-    void *arguments = (void*)args;
-
-    //for(int i = 0; i < NUM_SAMPLES; i++)
-    //{
-    //    simulate(args);
-    //}
-
     /* MULTITHREADING PART */
     /* Creating array of threads, as well initialize the mutex for updating our option struct. */
     pthread_t th[NUM_THREADS];
@@ -175,6 +168,11 @@ int main(void)
         pthread_join(th[i], NULL);
     }
     pthread_mutex_destroy(&update_mutex); 
+
+    /* Finally, adjust the price so that it is exactly correct 
+    (it may be the case that too many samples are taken due to multithreading) */
+    double correction_factor = (double)args->simulator->max_iters/(double)args->simulator->curr_iter;
+    args->option->price *= correction_factor;    
 
     printf("Option price is %lf.\n", args->option->price);
     printf("Number of samples is %lld \n", args->simulator->curr_iter);
