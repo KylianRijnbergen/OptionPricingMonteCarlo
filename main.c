@@ -7,13 +7,13 @@
 #include "libs/random.h" /* Included own random library header file */
 
 /* DEFINITION OF SYSTEM SPECS */
-#define NUM_THREADS 1 /* We use NUM_THREADS threads for now. This can be changed to a higher number later */
+#define NUM_THREADS 20 /* We use NUM_THREADS threads for now. This can be changed to a higher number later */
 #define TIME_DELTA 252 /* We use a time step of TIME_DELTA for now */
 
 /* DEFINITION OF PROGRAM PARAMETERS */
 #define RANDOM_SEED 1843397
-#define BATCH_SIZE 1
-#define NUM_SAMPLES (long long)pow(10,6) /* Samples is NUM_SAMPLES. Cast to long long. */ 
+#define BATCH_SIZE 1000
+#define NUM_SAMPLES (long long)pow(10,7) /* Samples is NUM_SAMPLES. Cast to long long. */ 
 #define TRADING_DAYS 252
 #define RISK_FREE_RATE 0.01
 #define START_PRICE 100
@@ -92,8 +92,7 @@ typedef struct Args
 } Args;
 
 /* Declaration of global variables */
-pthread_mutex_t price_mutex; /* Mutex for locking the updating of the option price */
-pthread_mutex_t iter_mutex; /* Mutex for locking the updating of the current iteration */
+pthread_mutex_t update_mutex; /* Mutex for locking the updating of the option price and iters */
 
 /* Main Function */
 int main(void)
@@ -111,7 +110,7 @@ int main(void)
     GOOGL->name = "Google";
     GOOGL->start_price = START_PRICE;
     GOOGL->volatility = VOLATILITY;
-    /* Print asset to see if everything is as expected*/
+    /* Print asset to see if everything is as expected */
     asset_print(GOOGL);
 
     /* Market Creation */
@@ -162,8 +161,7 @@ int main(void)
     /* MULTITHREADING PART */
     /* Creating array of threads, as well initialize the mutex for updating our option struct. */
     pthread_t th[NUM_THREADS];
-    pthread_mutex_init(&price_mutex, NULL); 
-    pthread_mutex_init(&iter_mutex, NULL);
+    pthread_mutex_init(&update_mutex, NULL); 
 
     /* Spawn threads */
     for (int i = 0; i < NUM_THREADS; i++)
@@ -176,8 +174,7 @@ int main(void)
     {
         pthread_join(th[i], NULL);
     }
-    pthread_mutex_destroy(&price_mutex); 
-    pthread_mutex_destroy(&iter_mutex);
+    pthread_mutex_destroy(&update_mutex); 
 
     printf("Option price is %lf.\n", args->option->price);
     printf("Number of samples is %lld \n", args->simulator->curr_iter);
@@ -249,7 +246,6 @@ void asset_print(Asset *asset)
     printf("Start price of asset is %.2lf.\n", asset->start_price);
     printf("Volatility of asset is %.2lf.\n", asset->volatility);
     printf("\n");
-    return NULL;
 }
 
 /* Function that prints the market */
@@ -258,7 +254,6 @@ void market_print(Market *market)
     printf("Trading days in market are %d.\n", market->trading_days);
     printf("Daily risk-free rate of return is %.10lf.\n", market->risk_free);
     printf("\n");
-    return NULL;
 }
 
 /* Function that prints our simulator */
@@ -268,7 +263,6 @@ void simulator_print(Simulator *simulator)
     printf("Simulator is currently at iteration %lld.\n", simulator->curr_iter);
     printf("Simulator will stop after %lld iterations.\n", simulator->max_iters);
     printf("\n");
-    return NULL;
 }
 
 /* Function that prints our option */
@@ -284,7 +278,6 @@ void option_print(Option *option)
     printf("The current price of Google stock is %.2lf.\n", option->underlying->start_price);
     print_line();
     printf("\n\n");
-    return NULL;
 }
 
 /* Function that prints a line to the console */
@@ -295,7 +288,6 @@ void print_line()
         printf("_");
     }
     printf("\n\n");
-    return NULL;
 }
 
 /* Max function for doubles */
@@ -329,16 +321,13 @@ void* simulate(void* inp_args)
         {
             price_update += discountd((compute_path_payoff(args)), (double)args->market->risk_free, (double)args->option->maturity);
         }
-        pthread_mutex_lock(&price_mutex);
-        pthread_mutex_lock(&iter_mutex);
+        pthread_mutex_lock(&update_mutex);
     
         args->option->price += price_update/NUM_SAMPLES;
         args->simulator->curr_iter += BATCH_SIZE;
 
-        pthread_mutex_unlock(&price_mutex);
-        pthread_mutex_unlock(&iter_mutex);
+        pthread_mutex_unlock(&update_mutex);
     }
-    return NULL;
 }
 
 /* Function that computes the payoff for a single path (random walk). */
