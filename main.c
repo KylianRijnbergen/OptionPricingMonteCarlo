@@ -13,7 +13,7 @@
 /* DEFINITION OF PROGRAM PARAMETERS */
 #define RANDOM_SEED 1843397
 #define BATCH_SIZE 1000
-#define NUM_SAMPLES (long long)pow(10,7) /* Samples is NUM_SAMPLES. Cast to long long. */ 
+#define NUM_SAMPLES (long long)pow(10,8) /* Samples is NUM_SAMPLES. Cast to long long. */ 
 #define TRADING_DAYS 252
 #define RISK_FREE_RATE 0.01
 #define START_PRICE 100
@@ -119,7 +119,7 @@ int main(void)
     STOCK_MARKET->trading_days = TRADING_DAYS;
     double yearly_risk_free = RISK_FREE_RATE;
     double daily_risk_free;
-    daily_risk_free = pow( (double)((yearly_risk_free / 100) + 1) , ((double)1/(double)(STOCK_MARKET->trading_days))) - 1;
+    daily_risk_free = pow( (double)(yearly_risk_free + 1) , ((double)1/(double)(STOCK_MARKET->trading_days))) - 1;
     STOCK_MARKET->risk_free = daily_risk_free;
     /* Print market to see if everything is as expected */
     market_print(STOCK_MARKET);
